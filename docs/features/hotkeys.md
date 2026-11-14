@@ -142,7 +142,8 @@ Keyboard settings if it conflicts. Globe+key chords use Carbon registration, lik
 Dictation's hold-to-talk mode reserves its single physical modifier across both tap gestures. It
 starts after 250 ms held alone, so ordinary modifier+key chords do not briefly start recording. Another
 key, modifier or mouse click cancels a pending or active hold; Return and Escape belong to the dictation
-panel while listening. Release finishes the recording. Pausing, rebinding, disabling Dictation,
+panel while it shows, registered with Carbon both bare and with the held chord or modifier, since the
+panel never takes key focus. Release finishes the recording. Pausing, rebinding, disabling Dictation,
 session changes and tap teardown cancel any hold. Double-tap bindings require toggle mode.
 
 ## Double-tap modifiers

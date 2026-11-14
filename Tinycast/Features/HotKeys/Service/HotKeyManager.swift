@@ -70,6 +70,7 @@ final class HotKeyManager {
     private var secureInputReplacedActions: [HotKeyAction] = []
     private var secureInputPressedActions: [String: HotKeyAction] = [:]
     private var secureInputHint: KeyShortcut?
+    private var dictationPanelKeyIDs: [String] = []
     private static let secureInputHintID = "secureInputHint"
     private var bindings: [HotKeyAction: HotKeyBinding] = [:]
     /// Part of `AppIndex`'s cache key: a bound entry leaves the launcher's Suggestions.
@@ -306,6 +307,37 @@ final class HotKeyManager {
         secureInputEquivalentIDs.removeAll(keepingCapacity: true)
         secureInputReplacedActions.forEach(register)
         secureInputReplacedActions.removeAll(keepingCapacity: true)
+    }
+
+    // MARK: - The dictation capsule
+
+    /// The capsule never takes key focus, so while it shows it claims Return and Escape as hotkeys.
+    func claimDictationPanelKeys(onAccept: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        releaseDictationPanelKeys()
+        var chords: Set<Int> = [0]
+        // A held recording's chord or modifier is still down when Return or Escape arrives.
+        if dictationHoldToTalk, let binding = binding(for: .dictation) {
+            if let shortcut = binding.shortcut { chords.insert(shortcut.carbonModifiers) }
+            if let holdKey = binding.holdKey {
+                chords.insert(KeyShortcut.carbonModifiers(of: holdKey))
+            }
+        }
+        let keys: [(Int, () -> Void)] =
+            KeyShortcut.dictationAcceptKeyCodes.map { ($0, onAccept) }
+            + [(KeyShortcut.dictationCancelKeyCode, onCancel)]
+        for modifiers in chords {
+            for (keyCode, handler) in keys {
+                let id = "dictationPanel.\(keyCode).\(modifiers)"
+                let shortcut = KeyShortcut(carbonKeyCode: keyCode, carbonModifiers: modifiers)
+                center.register(id: id, shortcut: shortcut, onKeyDown: { _ in handler() })
+                dictationPanelKeyIDs.append(id)
+            }
+        }
+    }
+
+    func releaseDictationPanelKeys() {
+        dictationPanelKeyIDs.forEach { center.unregister(id: $0) }
+        dictationPanelKeyIDs.removeAll(keepingCapacity: true)
     }
 
     /// Include Shift redefines the chord, and a stored combo has the old one baked in.

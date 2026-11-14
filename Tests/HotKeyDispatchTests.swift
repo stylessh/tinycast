@@ -14,8 +14,43 @@ struct HotKeyDispatchTests {
 
     static func main() {
         for includesShift in [false, true] { dispatch(includesShift: includesShift) }
+        dictationPanelKeys()
         print("\(checks) dispatch checks; \(failures) failures")
         if failures > 0 { exit(1) }
+    }
+
+    static func dictationPanelKeys() {
+        let domain = "tinycast.hotkey-dispatch-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let manager = HotKeyManager(defaults: defaults)
+        let center = HotKeyCenter.current!
+        manager.dictationEnabled = true
+        manager.dictationHoldToTalk = true
+        manager.setBinding(.modifier(.rightOption), for: .dictation)
+        let before = center.entries.count
+        var accepts = 0
+        var cancels = 0
+        manager.claimDictationPanelKeys(onAccept: { accepts += 1 }, onCancel: { cancels += 1 })
+        func claimed(_ keyCode: Int, _ modifiers: Int) -> Bool {
+            let shortcut = KeyShortcut(carbonKeyCode: keyCode, carbonModifiers: modifiers)
+            return center.entries.values.contains { $0.shortcut == shortcut }
+        }
+        check("the capsule claims bare Return and Escape", claimed(kVK_Return, 0) && claimed(kVK_Escape, 0))
+        check(
+            "a held Option still reaches Return and Escape",
+            claimed(kVK_Return, optionKey) && claimed(kVK_Escape, optionKey))
+        for value in center.entries.values where value.shortcut.carbonKeyCode == kVK_Escape {
+            value.onKeyDown(0)
+        }
+        center.entries.values.first { $0.shortcut.carbonKeyCode == kVK_ANSI_KeypadEnter }?.onKeyDown(0)
+        check("Escape cancels and keypad Enter accepts", cancels == 2 && accepts == 1)
+        manager.releaseDictationPanelKeys()
+        check("closing the capsule hands its keys back", center.entries.count == before)
+        manager.dictationHoldToTalk = false
+        manager.claimDictationPanelKeys(onAccept: {}, onCancel: {})
+        check("toggle mode claims only the bare keys", center.entries.count == before + 3)
+        manager.releaseDictationPanelKeys()
     }
 
     static func dispatch(includesShift: Bool) {

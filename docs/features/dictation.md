@@ -29,7 +29,9 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   Modifier holds begin after 250 ms alone and reserve their key across single and double taps.
   Another modifier, key or click cancels the hold without inserting text. Double taps require toggle.
 - Carbon or the shared modifier monitor reports release to stop a held recording. Return finishes,
-  Escape cancels. Opening a shortcut recorder cancels a held recording before pausing its shortcuts.
+  Escape cancels: the panel never takes key focus, so `HotKeyManager` claims both as Carbon hotkeys,
+  bare and with a held chord or modifier, only while the panel shows. Opening a shortcut recorder
+  cancels a held recording before pausing its shortcuts.
   A session token
   prevents a cancelled or superseded transcription from inserting text later.
 - AI Chat's composer mic is always click-to-toggle into that field: `toggle(into:)` targets its
@@ -37,10 +39,12 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   its transcript is inserted whatever the destination setting, never copied.
   Switching chats or closing the composer cancels only the session targeting that editor, including
   one started by a shortcut. The session token is checked again when queued insertion runs.
-- The nonactivating panel preserves the target app. Text insertion reuses `TextInjector`, including
-  its temporary clipboard ownership, focus, secure-input and protected-target checks. Copy-only
-  writes the plain transcript without reading the caret; paste-and-copy writes the persistent copy
-  after delivery or a failed insertion.
+- The panel never activates, becomes key or takes clicks, so focus stays with the user while they
+  speak. A shortcut session resolves its target again before each chunk and the final insertion,
+  so text lands wherever the user moved focus; a mic button's session keeps its field. Text
+  insertion reuses `TextInjector`, including its temporary clipboard ownership, focus, secure-input
+  and protected-target checks. Copy-only writes the plain transcript without reading the caret;
+  paste-and-copy writes the persistent copy after delivery or a failed insertion.
 - The Liquid Glass capsule displays 21 fixed frequency bands driven by the microphone, sampled at
   most 20 times per second through a reused 512-point Accelerate transform on the capture queue.
   Logarithmic bands span 32–5000 Hz so speech sits nearer the middle. Smoothed levels taper and
@@ -117,7 +121,8 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
 ## Validation
 
 `DictationCueTests` checks system resource paths, playback ordering and missing sounds without audio output.
-`DictationFieldTests` checks composer switching and teardown, scoped cancellation, delayed insertion and
+`DictationFieldTests` checks composer switching and teardown, scoped cancellation, delayed insertion,
+Return and Escape claimed only while the panel shows, and
 the order of sound cues against ducking
 with synthetic capture and real AppKit editors, without recording audio or touching the shared clipboard.
 `DictationTests` checks formatting and model options; `DictationInferenceTests` checks score selection,
@@ -131,7 +136,8 @@ before and after fade steps, user volume changes, output switching, failed write
 without changing the system volume or downloading a model.
 
 Also exercise all four real models, short and long recordings, downloads/removal, initial microphone
-grant and denial, hold/toggle shortcuts, Return/Escape, output destinations, live insertion on and off, surrounding text with
+grant and denial, hold/toggle shortcuts, Return/Escape (bare and with the hold key down), clicking
+into another app's field mid-recording, output destinations, live insertion on and off, surrounding text with
 capitalization adaptation on and off,
 model switching and idle release/reload. Check both processes in Activity Monitor, and validate
 Debug and Release helper names, signatures and architecture slices. Model conversions and their

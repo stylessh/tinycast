@@ -10,6 +10,7 @@ struct DictationFieldTests {
         try await testScopedCancellation()
         try await testChatSwitch()
         try await testWindowClose()
+        try await testPanelKeys()
         try await testQueuedCancellation(closing: false)
         try await testQueuedCancellation(closing: true)
         try await testLiveDeliveryFailure()
@@ -100,6 +101,24 @@ struct DictationFieldTests {
         expect(fixture.capture.isRecording, "The reopened field can start its own recording")
         fixture.coordinator.cancel(in: reopened.editor!)
         try await wait { !fixture.capture.isRecording }
+    }
+
+    private static func testPanelKeys() async throws {
+        let fixture = Fixture()
+        let editor = ComposerTextView()
+        try await fixture.start(into: editor)
+        try await wait { fixture.panel.isVisible }
+        expect(fixture.hotKeys.onPanelAccept != nil, "The capsule claims Return and Escape while shown")
+        fixture.hotKeys.onPanelAccept?()
+        try await wait { fixture.models.pending != nil }
+        expect(fixture.hotKeys.onPanelCancel != nil, "Escape still answers while transcribing")
+        fixture.hotKeys.onPanelCancel?()
+        try await wait { fixture.coordinator.field == nil }
+        expect(fixture.hotKeys.onPanelAccept == nil, "Closing the capsule hands Return and Escape back")
+        fixture.models.finish("Canceled speech")
+        try await wait { fixture.models.finished }
+        await fixture.queue.drain()
+        expect(editor.string.isEmpty, "Escape discards the transcript")
     }
 
     private static func testQueuedCancellation(closing: Bool) async throws {
@@ -309,9 +328,10 @@ struct DictationFieldTests {
         let settings = AppSettings()
         let models = DictationModelStore()
         let queue = DeliveryQueue()
+        let hotKeys = HotKeyManager()
         var messages: [String] = []
         lazy var coordinator = DictationCoordinator(
-            settings: settings, hotKeys: HotKeyManager(), models: models,
+            settings: settings, hotKeys: hotKeys, models: models,
             injector: TextInjector(
                 clipboardManager: ClipboardManager(), settings: settings, deliveryQueue: queue),
             audioDucker: DictationAudioDucker(), confirmEnable: { false },
@@ -415,6 +435,16 @@ final class HotKeyManager {
     }
     func binding(for action: HotKeyAction) -> Binding? { nil }
     func conflictOwner(of binding: Binding, excluding action: HotKeyAction) -> String? { nil }
+    var onPanelAccept: (() -> Void)?
+    var onPanelCancel: (() -> Void)?
+    func claimDictationPanelKeys(onAccept: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        onPanelAccept = onAccept
+        onPanelCancel = onCancel
+    }
+    func releaseDictationPanelKeys() {
+        onPanelAccept = nil
+        onPanelCancel = nil
+    }
 }
 
 @MainActor
@@ -470,8 +500,6 @@ final class DictationPanelController {
     }
     static weak var latest: DictationPanelController?
     let state = State()
-    var onAccept: (() -> Void)?
-    var onCancel: (() -> Void)?
     var isVisible = false
     init() { Self.latest = self }
     func show() { isVisible = true }

@@ -46,8 +46,6 @@ final class DictationCoordinator {
         self.audioDucker = audioDucker
         self.confirmEnable = confirmEnable
         self.showMessage = showMessage
-        panel.onAccept = { [weak self] in self?.accept() }
-        panel.onCancel = { [weak self] in self?.cancel() }
         capture.onLevels = { [weak self] in
             guard let self else { return }
             panel.state.levels = $0
@@ -167,7 +165,7 @@ final class DictationCoordinator {
                     return
                 }
                 phase = .listening
-                panel.show()
+                showPanel()
                 startLiveInsertion(token: current)
                 if finishWhenStarted { accept() }
             } catch {
@@ -240,15 +238,15 @@ final class DictationCoordinator {
                     tail, model: model,
                     language: language)
                 guard token == current else { return }
+                let target = followFocus()
                 // A mic belongs to its field: the text goes in there, never to the clipboard.
                 let context = destination.pastes ? insertionContext() : nil
                 let text = DictationTextFormatter.format(
                     transcript, context: context,
                     adaptCapitalization: settings.dictationAdaptsCapitalization)
-                let target = self.target
                 let assembled = liveText + text
                 guard !text.isEmpty else { finishWithoutRemainder(destination); return }
-                panel.close()
+                closePanel()
                 if destination.pastes {
                     injector.deliver(
                         InjectedText(text), target: target, expectedKeyword: nil,
@@ -337,6 +335,7 @@ final class DictationCoordinator {
                 language: settings.dictationLanguage)
             guard token == current else { return }
             liveOffset = end
+            let target = followFocus()
             let context = insertionContext()
             let text = DictationTextFormatter.format(
                 transcript, context: context,
@@ -344,7 +343,6 @@ final class DictationCoordinator {
             let stripped = DictationTextFormatter.stripEcho(text, after: liveText)
             guard !stripped.isEmpty else { return }
             liveText += stripped
-            let target = self.target
             injector.deliver(
                 InjectedText(stripped), target: target, expectedKeyword: nil,
                 keywordLength: 0, automaticGeneration: nil,
@@ -404,8 +402,26 @@ final class DictationCoordinator {
         phase = .idle
         target = nil
         field = nil
-        panel.close()
+        closePanel()
         audioDucker.end()
+    }
+
+    private func showPanel() {
+        panel.show()
+        hotKeys.claimDictationPanelKeys(
+            onAccept: { [weak self] in self?.accept() },
+            onCancel: { [weak self] in self?.cancel() })
+    }
+
+    private func closePanel() {
+        panel.close()
+        hotKeys.releaseDictationPanelKeys()
+    }
+
+    /// A shortcut's text lands where focus is now, so the user can switch fields while speaking.
+    private func followFocus() -> InjectionTarget? {
+        if field == nil { target = InjectionTarget.current() }
+        return target
     }
 }
 

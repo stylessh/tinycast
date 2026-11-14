@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 import SwiftUI
 
 @MainActor
@@ -74,10 +73,8 @@ private struct DictationPanelView: View {
     }
 }
 
+/// Never key, so the caret stays wherever the user puts it while they speak.
 private final class DictationPanel: NSPanel, AnimatedPanel {
-    var onAccept: (() -> Void)?
-    var onCancel: (() -> Void)?
-
     init(content: NSView) {
         super.init(
             contentRect: NSRect(origin: .zero, size: Theme.Size.dictationPanel),
@@ -90,30 +87,18 @@ private final class DictationPanel: NSPanel, AnimatedPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
+        ignoresMouseEvents = true
         followMotion()
     }
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
-
-    override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown, !event.isARepeat {
-            switch Int(event.keyCode) {
-            case kVK_Return, kVK_ANSI_KeypadEnter: onAccept?(); return
-            case kVK_Escape: onCancel?(); return
-            default: break
-            }
-        }
-        super.sendEvent(event)
-    }
 }
 
 @MainActor
 final class DictationPanelController {
     let state = DictationDisplayState()
     private var panel: DictationPanel?
-    var onAccept: (() -> Void)?
-    var onCancel: (() -> Void)?
 
     func show() {
         let screen = NSScreen.main ?? NSScreen.screens.first
@@ -122,8 +107,6 @@ final class DictationPanelController {
             panel
             ?? DictationPanel(
                 content: NSHostingView(rootView: DictationPanelView(state: state).motionScope()))
-        panel.onAccept = onAccept
-        panel.onCancel = onCancel
         self.panel = panel
         let size = Theme.Size.dictationPanel
         panel.setFrameOrigin(
@@ -132,7 +115,7 @@ final class DictationPanelController {
                 y: frame.minY + frame.height * 0.1 - size.height / 2))
         state.phase = .listening
         state.levels = [Float](repeating: 0, count: DictationSpectrum.barCount)
-        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
     }
 
     func close() {

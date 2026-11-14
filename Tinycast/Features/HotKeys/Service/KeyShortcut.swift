@@ -51,6 +51,22 @@ struct KeyShortcut: Hashable, Sendable {
         return carbon
     }
 
+    /// The Carbon mask a held modifier key adds to every key pressed beside it.
+    static func carbonModifiers(of key: ModifierKey) -> Int {
+        switch key.modifier {
+        case .control: controlKey
+        case .option: optionKey
+        case .shift: shiftKey
+        case .command: cmdKey
+        case nil: kEventKeyModifierFnMask
+        }
+    }
+
+    // MARK: - The dictation capsule
+
+    static let dictationAcceptKeyCodes = [kVK_Return, kVK_ANSI_KeypadEnter]
+    static let dictationCancelKeyCode = kVK_Escape
+
     // MARK: - The Hyper chord
 
     /// ⌃⌥⌘, plus ⇧ when Include Shift is on — the one place the chord is spelled out.
